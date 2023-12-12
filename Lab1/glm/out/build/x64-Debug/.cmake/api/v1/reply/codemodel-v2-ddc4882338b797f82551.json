@@ -1,0 +1,38 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"projectIndex" : 0,
+					"source" : "."
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Project"
+				}
+			],
+			"targets" : []
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "D:/Personal_Data/an III/PG/lab/Lab1/glm/out/build/x64-Debug",
+		"source" : "D:/Personal_Data/an III/PG/lab/Lab1/glm"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 2
+	}
+}
