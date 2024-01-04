@@ -51,8 +51,6 @@ GLuint lightDirLoc;
 glm::vec3 lightColor;
 GLuint lightColorLoc;
 
-GLuint skyboxLoc;
-
 GLuint textureID;
 gps::SkyBox mySkyBox;
 gps::Shader skyboxShader;
@@ -81,6 +79,10 @@ GLuint shadowMapFBO;
 GLuint depthMapTexture;
 
 bool showDepthMap;
+
+bool firstMouse = true;
+float lastX = 400, lastY = 300;
+float yaw, pitch = 0.0f;
 
 GLenum glCheckError_(const char *file, int line) {
 	GLenum errorCode;
@@ -123,7 +125,36 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
+	}
 
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos;
+	lastX = xpos;
+	lastY = ypos;
+
+	float sensitivity = 0.1f;
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	if (pitch > 89.0f)
+		pitch = 89.0f;
+	if (pitch < -89.0f)
+		pitch = -89.0f;
+
+	glm::vec3 direction;
+	direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	direction.y = sin(glm::radians(pitch));
+	direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+	myCamera.move(gps::MOVE_RIGHT, direction.x);
+	myCamera.move(gps::MOVE_FORWARD, direction.y);
 }
 
 void processMovement()
@@ -254,8 +285,12 @@ void initObjects() {
 }
 
 void initShaders() {
-	myCustomShader.loadShader("shaders/shaderStart.vert", "shaders/shaderStart.frag");
+	//reflections
+	//myCustomShader.loadShader("shaders/shaderStart.vert", "shaders/shaderStart.frag");
+	//no reflections
+	myCustomShader.loadShader("shaders/shaderStartNoReflections.vert", "shaders/shaderStartNoReflections.frag");
 	myCustomShader.useShaderProgram();
+	
 	lightShader.loadShader("shaders/lightCube.vert", "shaders/lightCube.frag");
 	lightShader.useShaderProgram();
 	screenQuadShader.loadShader("shaders/screenQuad.vert", "shaders/screenQuad.frag");
@@ -264,40 +299,6 @@ void initShaders() {
 	depthMapShader.useShaderProgram();
 	skyboxShader.loadShader("shaders/skyboxShader.vert", "shaders/skyboxShader.frag");
 	skyboxShader.useShaderProgram();
-}
-
-void cubeMap() {
-	std::vector<const GLchar*> faces;
-	faces.push_back("skybox/right.tga");
-	faces.push_back("skybox/left.tga");
-	faces.push_back("skybox/top.tga");
-	faces.push_back("skybox/bottom.tga");
-	faces.push_back("skybox/back.tga");
-	faces.push_back("skybox/front.tga");
-
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
-
-	int width, height, n;
-
-	for (GLuint i = 0; i < faces.size(); i++)
-	{
-		unsigned char* image = stbi_load(faces[i], &width, &height, &n, 0);
-		if (!image) {
-			fprintf(stderr, "ERROR: could not load %s\n", faces[i]);
-		}
-		glTexImage2D(
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,
-			GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-		stbi_image_free(image);
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
 }
 
 void initUniforms() {
@@ -329,9 +330,6 @@ void initUniforms() {
 	lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
 	lightColorLoc = glGetUniformLocation(myCustomShader.shaderProgram, "lightColor");
 	glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
-
-	//set cubeMap
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
 
 	lightShader.useShaderProgram();
 	glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -454,8 +452,6 @@ void renderScene() {
 
 		view = myCamera.getViewMatrix();
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-		mySkyBox.Draw(skyboxShader, view, projection);
 				
 		lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
 		glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
@@ -472,7 +468,6 @@ void renderScene() {
 
 		drawObjects(myCustomShader, false);
 
-
 		//draw a white cube around the light
 
 		lightShader.useShaderProgram();
@@ -485,6 +480,8 @@ void renderScene() {
 		glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 		lightCube.Draw(lightShader);
+
+		mySkyBox.Draw(skyboxShader, view, projection);
 	}
 }
 
